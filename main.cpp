@@ -1,3 +1,4 @@
+#include <unistd.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -19,9 +20,9 @@ using std::endl;
 #define MAX_MSG_LEN 512
 #define OPCODE_WRQ 2
 #define OPCODE_ACK 4
-#define OPCPDE_DATA 3
+#define OPCODE_DATA 3
 int session(int sockfd, sockaddr clientAddr, int file_fd);
-int send_ack(int _block_num, int sockfd);
+int send_ack(uint16_t block_num, int sockfd);
 
 int main(int argc, char** argv) {
 
@@ -93,7 +94,7 @@ int main(int argc, char** argv) {
         }
 
         //send ack
-        if (sendack(0, sockfd) < 0) {
+        if (send_ack(0, sockfd) < 0) {
             fclose(pFile);
             continue;
         }
@@ -106,7 +107,7 @@ int main(int argc, char** argv) {
 
 int session(int sockfd, sockaddr clientAddr, int file_fd) {
     //reciving packet timer
-    struct timeval recive_timeout = { tv_sec = WAIT_FOR_PACKET_TIMEOUT };
+    struct timeval recive_timeout = { WAIT_FOR_PACKET_TIMEOUT };
     //recive_timeout.tv_sec = WAIT_FOR_PACKET_TIMEOUT;
     //recive_timeout.tv_sec = 3;
     //count failures
@@ -125,7 +126,7 @@ int session(int sockfd, sockaddr clientAddr, int file_fd) {
 
         // TODO: Wait WAIT_FOR_PACKET_TIMEOUT to see if something appears
         // for us at the socket (we are waiting for DATA)
-        status = select(sockfd + 1, &sockfd, NULL, NULL, recive_timeout); //wait
+        status = select(sockfd + 1, (fd_set*)&sockfd, NULL, NULL, &recive_timeout); //wait
 
         if (status < 0) {
             perror("TTFTP ERROR:");
@@ -145,17 +146,17 @@ int session(int sockfd, sockaddr clientAddr, int file_fd) {
             netOpcode = (uint16_t)buffer[0]; // TODO (raveh): remove, this is for debug to see this casting is ok.
             opcode = ntohs(netOpcode);
             netPackage = (uint16_t)buffer[3]; // TODO (raveh): remove, this is for debug to see this casting is ok.
-            package = ntohs(package);
-            if (opcode == OPCPDE_DATA) {
-                cout << "IN:DATA, " << block << "," << recived_size << endl;
+            package = ntohs(netPackage);
+            if (opcode == OPCODE_DATA) {
+                cout << "IN:DATA, " << package << "," << recived_size << endl;
                 if (package == package_count + 1) {
                     // if data ok
                     package_count++;
-                    written_size = write(file_fd, buffer[5], recived_size);
+                    written_size = write(file_fd, &buffer[5], recived_size);
                     if (written_size != recived_size) {
-                        perror("TTFTP ERROR:") // error writing to file
+                        perror("TTFTP ERROR:"); // error writing to file
                     }
-                    if (sendack(package, sockfd) != 0) {
+                    if (send_ack(package, sockfd) != 0) {
                         return -1;
                     }
                     if ((int)recived_size < MAX_MSG_LEN) {
@@ -178,7 +179,7 @@ int session(int sockfd, sockaddr clientAddr, int file_fd) {
             // to appear at the socket
         {
             cout << "FLOWERROR: timeout" << endl;
-            if (++numOfFailures > NUMBER_OF_FAILURES) {
+            if (++failures > NUMBER_OF_FAILURES) {
                 cout << "FLOWERROR: max failures was reached" << endl;
                 return -1;
             }
@@ -191,10 +192,10 @@ int session(int sockfd, sockaddr clientAddr, int file_fd) {
             }
         }
 
-    } while (1) // TODO: Continue while some socket was ready
+    } while (1); // TODO: Continue while some socket was ready
     // but recvfrom somehow failed to read the data
 
-    if (opcode != OPCPDE_DATA || package != package_count + 1) {
+    if (opcode != OPCODE_DATA || package != package_count + 1) {
         // TODO: We got something else but DATA
         // TODO: The incoming block number is not what we have
         // expected, i.e. this is a DATA pkt but the block number
@@ -215,18 +216,16 @@ struct ACK_package {
     uint16_t opcode;
 }__attribute__((packed));
 
-int send_ack(int _block_num, int sockfd) {
-    uint16_t block_num = (uint16_t)_block_num;
-    uint16_t opcode = (uint16_t)_opcode;
+int send_ack(uint16_t block_num, int sockfd) {
 
     struct ACK_package ack = { block_num, OPCODE_ACK };
-    int res = write(sockfd, ack, sizeof(ack));
+    int res = write(sockfd, (void*)&ack, sizeof(ack));
     if (res < 0) {
         perror("TTFTP ERROR:");
         return -1;
     }
     else {
-        cout << "OUT:ACK, " << _block_num << endl;
+        cout << "OUT:ACK, " << block_num << endl;
         return 0;
     }
 
