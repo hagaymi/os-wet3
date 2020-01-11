@@ -1,4 +1,5 @@
-
+const int WAIT_FOR_PACKET_TIMEOUT = 3;
+const int NUMBER_OF_FAILURES = 7;
 do {
     do {
 
