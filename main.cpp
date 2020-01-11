@@ -21,7 +21,7 @@ using std::endl;
 #define OPCODE_WRQ 2
 #define OPCODE_ACK 4
 #define OPCODE_DATA 3
-int session(int sockfd, sockaddr clientAddr, int file_fd);
+int session(int sockfd, int file_fd);
 int send_ack(uint16_t block_num, int sockfd);
 
 int main(int argc, char** argv) {
@@ -56,15 +56,14 @@ int main(int argc, char** argv) {
     listen(sockfd, NUM_OF_ALLOWED_CONNECTION_REQ);
 
     while (1) {
-        struct sockaddr clientAddr = { 0 };
         char buf[MAX_MSG_LEN];
 
 
-        if (0 > recvfrom(sockfd,&buf,MAX_MSG_LEN,MSG_WAITALL, &clientAddr,NULL)){ //TODO (Raveh): make sure this is blocking
-            perror("TTFTP_ERROR:");
+        if (0 > recvfrom(sockfd,&buf,MAX_MSG_LEN,0, NULL,NULL)){ //TODO (Raveh): make sure this is blocking
+            perror("TTFTP_ERROR");
             continue;
         };
-
+        cout << "recived" << endl;
         //parse incoming packet
         uint16_t netOpcode = (uint16_t)buf[0]; // TODO (raveh): remove, this is for debug to see this casting is ok.
         uint16_t opcode = ntohs((uint16_t)buf[0]);
@@ -100,12 +99,12 @@ int main(int argc, char** argv) {
         }
 
         //save the data
-        int status = session(sockfd,clientAddr,fileno(pFile));
+        int status = session(sockfd,fileno(pFile));
         fclose(pFile);
     }
 }
 
-int session(int sockfd, sockaddr clientAddr, int file_fd) {
+int session(int sockfd,  int file_fd) {
     //reciving packet timer
     struct timeval recive_timeout = { WAIT_FOR_PACKET_TIMEOUT };
     //recive_timeout.tv_sec = WAIT_FOR_PACKET_TIMEOUT;
@@ -136,7 +135,7 @@ int session(int sockfd, sockaddr clientAddr, int file_fd) {
             // we are here not because of a timeout
         {
             //read();
-            recived_size = recvfrom(sockfd, &buffer, MAX_MSG_LEN, MSG_WAITALL, &clientAddr, NULL); //TODO (Raveh): make sure this is blocking
+            recived_size = recvfrom(sockfd, &buffer, MAX_MSG_LEN, MSG_WAITALL, NULL, NULL); //TODO (Raveh): make sure this is blocking
             if (recived_size < 0) {
                 perror("TTFTP ERROR:");
             }
