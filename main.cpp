@@ -1,6 +1,3 @@
-#include <sys/types.h>
-#include <sys/socket.h>
-
 const int WAIT_FOR_PACKET_TIMEOUT = 3;
 const int NUMBER_OF_FAILURES = 7;
 
@@ -26,7 +23,7 @@ int main(int argc, char** argv) {
         myAdrr.sin_addr.s_addr = INADDR_ANY;
         myAdrr.sin_port = htonl(port)
         bind(sockfd, (struct sockaddr_in*) &myAddr, sizeof(myAddr)
-        
+
         //listen
         listen()
         // accept (blocking)
@@ -35,6 +32,15 @@ int main(int argc, char** argv) {
 
         //send ack
 
+    //recieving data
+
+    //reciving packet timer
+    timeval recive_timeout ;
+    recive_timeout.tv_sec = WAIT_FOR_PACKET_TIMEOUT;
+    //recive_timeout.tv_sec = 3;
+
+    do {
+        do {
         //recieving data
         do {
             do {
@@ -43,8 +49,8 @@ int main(int argc, char** argv) {
                     // TODO: Wait WAIT_FOR_PACKET_TIMEOUT to see if something appears
                     // for us at the socket (we are waiting for DATA)
 
-                    //check number of failures, 
-                    status = select(WAIT_FOR_PACKET_TIMEOUT...) //wait
+                //check number of failures, 
+                status = select() //wait
 
                         if () // TODO: if there was something at the socket and
                             // we are here not because of a timeout
