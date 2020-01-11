@@ -1,3 +1,13 @@
+#include <sys\time.h>
+#include <time.h>
+#include <error.h>
+#include <inttypes.h>
+#include <netinet/in.h>
+#include <stdio.h>
+#include <iostream>
+using std::cout;
+using std::endl;
+
 const int WAIT_FOR_PACKET_TIMEOUT = 3;
 const int NUMBER_OF_FAILURES = 7;
 
@@ -11,7 +21,7 @@ int main(int argc, char** argv) {
         uint32_t port = atoi(argv(1));
 
         //init socket
-        uint32_t sockfd = socket(AF_INET, SOCK_DGRAM, 0); //setup a UDP socket
+        int sockfd = socket(AF_INET, SOCK_DGRAM, 0); //setup a UDP socket
         if (sockfd < 0) {
             perror("Error initializing socket:");
             return -1;
@@ -19,9 +29,9 @@ int main(int argc, char** argv) {
         //bind socket
         struct sockaddr_in myAddr = { 0 }, clientAddr = { 0 };
 
-        myAdrr.sin_family = AF_INET;
-        myAdrr.sin_addr.s_addr = INADDR_ANY;
-        myAdrr.sin_port = htonl(port)
+        myAddr.sin_family = AF_INET;
+        myAddr.sin_addr.s_addr = INADDR_ANY;
+        myAddr.sin_port = htonl(port);
         bind(sockfd, (struct sockaddr_in*) &myAddr, sizeof(myAddr)
 
         //listen
@@ -35,32 +45,31 @@ int main(int argc, char** argv) {
     //recieving data
 
     //reciving packet timer
-    timeval recive_timeout ;
-    recive_timeout.tv_sec = WAIT_FOR_PACKET_TIMEOUT;
+    struct timeval recive_timeout;
+        recive_timeout.tv_sec = WAIT_FOR_PACKET_TIMEOUT;
     //recive_timeout.tv_sec = 3;
+    //count failures
+    int failures = 0;
 
-    do {
-        do {
-        //recieving data
         do {
             do {
-
+            //recieving data
                 do {
+
                     // TODO: Wait WAIT_FOR_PACKET_TIMEOUT to see if something appears
                     // for us at the socket (we are waiting for DATA)
+                    //check number of failures,
+                    status = select((int)sockfd+1, &sockfd, NULL, NULL, recive_timeout) //wait
 
-                //check number of failures, 
-                status = select() //wait
-
-                        if () // TODO: if there was something at the socket and
-                            // we are here not because of a timeout
-                        {
-                            read();
-                            handle();
-                            sendack() :
-                                // TODO: Read the DATA packet from the socket (at
-                                // least we hope this is a DATA packet)
-                        }
+                    if () // TODO: if there was something at the socket and
+                        // we are here not because of a timeout
+                    {
+                        read();
+                        handle();
+                        sendack() :
+                            // TODO: Read the DATA packet from the socket (at
+                            // least we hope this is a DATA packet)
+                    }
                     if (...) // TODO: Time out expired while waiting for data
                         // to appear at the socket
                         if (++numOfFailures > NUMBER_OF_FAILURES) return -1;
