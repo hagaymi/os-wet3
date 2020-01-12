@@ -21,8 +21,8 @@ using std::endl;
 #define OPCODE_WRQ 2
 #define OPCODE_ACK 4
 #define OPCODE_DATA 3
-int session(int sockfd, int file_fd);
-int send_ack(uint16_t block_num, int sockfd);
+int session(int sockfd, struct sockaddr_in * clientSock, unsigned int clientSockSize,  int file_fd);
+int send_ack(uint16_t block_num, struct sockaddr_in * clientSock, unsigned int clientSockSize, int sockfd);
 
 int main(int argc, char** argv) {
 
@@ -32,7 +32,7 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    uint32_t port = atoi(argv[1]);
+    uint16_t port = atoi(argv[1]);
 
     //init socket
     int sockfd = socket(AF_INET, SOCK_DGRAM, 0); //setup a UDP socket
@@ -44,8 +44,8 @@ int main(int argc, char** argv) {
     struct sockaddr_in myAddr = { 0 }, clientAddr = { 0 };
 
     myAddr.sin_family = AF_INET;
-    myAddr.sin_addr.s_addr = INADDR_ANY;
-    myAddr.sin_port = htonl(port);
+    myAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    myAddr.sin_port = htons(port);
 
     if (0 > bind(sockfd, (struct sockaddr*) & myAddr, sizeof(myAddr))){
         perror("TTFTP_ERROR:");
@@ -53,28 +53,35 @@ int main(int argc, char** argv) {
     }
 
     //listen
-    listen(sockfd, NUM_OF_ALLOWED_CONNECTION_REQ);
+//    if(listen(sockfd, NUM_OF_ALLOWED_CONNECTION_REQ) != 0){
+//        perror("TTFTP_ERROR");
+//        return -1;
+//    }
 
     while (1) {
+        struct sockaddr_in clientSock;
+        unsigned int clientSockLen = sizeof(clientSock);
         char buf[MAX_MSG_LEN];
 
 
-        if (0 > recvfrom(sockfd,&buf,MAX_MSG_LEN,0, NULL,NULL)){ //TODO (Raveh): make sure this is blocking
+        if (0 > recvfrom(sockfd,&buf,MAX_MSG_LEN,MSG_WAITALL, (struct sockaddr*)&clientSock,&clientSockLen)){ //TODO (Raveh): make sure this is blocking
             perror("TTFTP_ERROR");
             continue;
         };
         cout << "recived" << endl;
         //parse incoming packet
-        uint16_t netOpcode = (uint16_t)buf[0]; // TODO (raveh): remove, this is for debug to see this casting is ok.
-        uint16_t opcode = ntohs((uint16_t)buf[0]);
-
+        uint16_t* pNetOpcode = (uint16_t*)buf; // TODO (raveh): remove, this is for debug to see this casting is ok.
+        uint16_t opcode = ntohs(*pNetOpcode);
+        cout <<"buffer: "<< buf << endl;
+        cout << "opcode" << opcode << endl;
         char fileName[MAX_MSG_LEN];
         strcpy(fileName, &buf[2]);
 
         char transMode[MAX_MSG_LEN];
         strcpy(transMode, &buf[2 + strlen(fileName) + 1]);// TODO (raveh): make sure this index arithmetic
 
-        if (opcode != 2){
+        if (opcode != OPCODE_WRQ){
+
             cout << "TTFTP_ERROR: Recieved packet is not WRQ" <<endl;
             continue;
         }
@@ -83,7 +90,7 @@ int main(int argc, char** argv) {
             continue;
         }
 
-        cout << "IN:WRQ," << fileName << "," << transMode <<"Where " << fileName << " and " << transMode << "are values of appropriate fields in the packet." << endl;
+        cout << "IN:WRQ, " << fileName << "," << transMode <<" Where " << fileName << " and " << transMode << " are values of appropriate fields in the packet." << endl;
 
         //open file for data
         FILE* pFile = fopen(fileName,"w");
@@ -93,20 +100,24 @@ int main(int argc, char** argv) {
         }
 
         //send ack
-        if (send_ack(0, sockfd) < 0) {
+        if (send_ack(0,&clientSock,clientSockLen, sockfd) < 0) {
             fclose(pFile);
             continue;
         }
 
         //save the data
-        int status = session(sockfd,fileno(pFile));
+        cout << "call session" << endl;
+        int status = session(sockfd,&clientSock,clientSockLen,fileno(pFile));
         fclose(pFile);
     }
 }
 
-int session(int sockfd,  int file_fd) {
+int session(int sockfd, struct sockaddr_in * clientSock, unsigned int clientSockSize, int file_fd) {
     //reciving packet timer
-    struct timeval recive_timeout = { WAIT_FOR_PACKET_TIMEOUT };
+    struct timeval recive_timeout;
+    recive_timeout.tv_sec = WAIT_FOR_PACKET_TIMEOUT;
+    recive_timeout.tv_usec = 0;
+    struct timeval tmp_timeout;
     //recive_timeout.tv_sec = WAIT_FOR_PACKET_TIMEOUT;
     //recive_timeout.tv_sec = 3;
     //count failures
@@ -121,12 +132,18 @@ int session(int sockfd,  int file_fd) {
     uint16_t opcode = 0;
     uint16_t netPackage = 0;
     uint16_t package = 0;
+    fd_set tmp_fd;
+
+
     do {
 
         // TODO: Wait WAIT_FOR_PACKET_TIMEOUT to see if something appears
         // for us at the socket (we are waiting for DATA)
-        status = select(sockfd + 1, (fd_set*)&sockfd, NULL, NULL, &recive_timeout); //wait
-
+        FD_SET(sockfd,&tmp_fd);
+        tmp_timeout = recive_timeout;
+        cout << "failures before: " << failures << endl;
+        status = select(sockfd + 1, &tmp_fd, NULL, NULL, &tmp_timeout); //wait
+        cout << "failures after: " << failures << endl;
         if (status < 0) {
             perror("TTFTP ERROR:");
             return -1; // TODO: check if need to return here or only failures++
@@ -142,9 +159,9 @@ int session(int sockfd,  int file_fd) {
             //handle();
             // TODO: Read the DATA packet from the socket (at
             // least we hope this is a DATA packet)
-            netOpcode = (uint16_t)buffer[0]; // TODO (raveh): remove, this is for debug to see this casting is ok.
+            netOpcode = *((uint16_t *)buffer); // TODO (raveh): remove, this is for debug to see this casting is ok.
             opcode = ntohs(netOpcode);
-            netPackage = (uint16_t)buffer[3]; // TODO (raveh): remove, this is for debug to see this casting is ok.
+            netPackage = *((uint16_t *)&buffer[2]); // TODO (raveh): remove, this is for debug to see this casting is ok.
             package = ntohs(netPackage);
             if (opcode == OPCODE_DATA) {
                 cout << "IN:DATA, " << package << "," << recived_size << endl;
@@ -155,7 +172,7 @@ int session(int sockfd,  int file_fd) {
                     if (written_size != recived_size) {
                         perror("TTFTP ERROR:"); // error writing to file
                     }
-                    if (send_ack(package, sockfd) != 0) {
+                    if (send_ack(package, clientSock, clientSockSize, sockfd) != 0) {
                         return -1;
                     }
                     if ((int)recived_size < MAX_MSG_LEN) {
@@ -178,16 +195,19 @@ int session(int sockfd,  int file_fd) {
             // to appear at the socket
         {
             cout << "FLOWERROR: timeout" << endl;
-            if (++failures > NUMBER_OF_FAILURES) {
+            failures++;
+            cout << "failures: " << failures << endl;
+            if (failures > NUMBER_OF_FAILURES) {
+
                 cout << "FLOWERROR: max failures was reached" << endl;
                 return -1;
             }
             else {
                 // send new ack
-                if (send_ack(package_count, sockfd) != 0) {
+                if (send_ack(package_count, clientSock, clientSockSize, sockfd) != 0) {
                     return -1;
                 }
-                continue;
+
             }
         }
 
@@ -215,11 +235,13 @@ struct ACK_package {
     uint16_t opcode;
 }__attribute__((packed));
 
-int send_ack(uint16_t block_num, int sockfd) {
-
+int send_ack(uint16_t block_num, struct sockaddr_in * clientSock, unsigned int clientSockSize, int sockfd) {
+    cout << "sendack" << endl;
     struct ACK_package ack = { block_num, OPCODE_ACK };
-    int res = write(sockfd, (void*)&ack, sizeof(ack));
-    if (res < 0) {
+    //int res = write(sockfd, (void*)&ack, sizeof(ack));
+    cout << "sizfe of ack " << sizeof(ack) << endl;
+    int res = sendto(sockfd, (void *)&ack, sizeof(ack), 0, (struct sockaddr *)clientSock, clientSockSize);
+    if (res != sizeof(ack)) {
         perror("TTFTP ERROR:");
         return -1;
     }
