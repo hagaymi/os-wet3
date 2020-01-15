@@ -21,7 +21,6 @@ using std::endl;
 #define OPCODE_WRQ 2
 #define OPCODE_ACK 4
 #define OPCODE_DATA 3
-#define OPCODE_ERROR 10
 int session(int sockfd, struct sockaddr_in * clientSock, unsigned int clientSockSize, FILE * file);// int file_fd);
 int send_ack(uint16_t block_num, struct sockaddr_in * clientSock, unsigned int clientSockSize, int sockfd);
 
@@ -59,7 +58,7 @@ int main(int argc, char** argv) {
         char buf[MAX_MSG_LEN];
 
         // wait for messages
-        if (0 > recvfrom(sockfd,&buf,MAX_MSG_LEN,MSG_WAITALL, (struct sockaddr*)&clientSock,&clientSockLen)){ //TODO (Raveh): make sure this is blocking
+        if (0 > recvfrom(sockfd,&buf,MAX_MSG_LEN,MSG_WAITALL, (struct sockaddr*)&clientSock,&clientSockLen)){
             perror("TTFTP_ERROR");
             continue;
         };
