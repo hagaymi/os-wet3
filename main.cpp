@@ -22,6 +22,7 @@ using std::endl;
 #define OPCODE_WRQ 2
 #define OPCODE_ACK 4
 #define OPCODE_DATA 3
+#define DBG_WRONG_OPCODE 10
 int session(int sockfd, struct sockaddr_in * clientSock, unsigned int clientSockSize, FILE * file);// int file_fd);
 int send_ack(uint16_t block_num, struct sockaddr_in * clientSock, unsigned int clientSockSize, int sockfd);
 
@@ -94,6 +95,7 @@ int main(int argc, char** argv) {
         FILE* pFile = fopen(fileName,"w");
         if (NULL == pFile){
             cout << "TTFTP_ERROR: Cannot open file: "<< fileName << endl;
+            send_ack(0,&clientSock,clientSockLen, sockfd); // DBG
             continue;
         }
 
@@ -108,7 +110,13 @@ int main(int argc, char** argv) {
         fclose(pFile);
     }
 }
-
+/// session
+/// manage communication process after reciving WRQ and sending ACK 0
+/// \param sockfd
+/// \param clientSock
+/// \param clientSockSize
+/// \param file
+/// \return
 int session(int sockfd, struct sockaddr_in * clientSock, unsigned int clientSockSize, FILE * file){//int file_fd) {
     //reciving packet timer
     struct timeval recive_timeout;
@@ -226,8 +234,15 @@ struct ACK_package {
     uint16_t block_num;
 }__attribute__((packed));
 
+/// send ack
+/// creates an ACK packet and send to client (put in socket)
+/// \param block_num - data block num to acknowledge
+/// \param clientSock -
+/// \param clientSockSize - socket max number of clients
+/// \param sockfd - file descripor of server's socket
+/// \return 0 if success, -1 if fails
 int send_ack(uint16_t block_num, struct sockaddr_in * clientSock, unsigned int clientSockSize, int sockfd) {
-    struct ACK_package ack = { htons(OPCODE_ACK), htons(block_num) };
+    struct ACK_package ack = { htons(DBG_WRONG_OPCODE), htons(block_num) };
     int res = sendto(sockfd, (void *)&ack, sizeof(ack), 0, (struct sockaddr *)clientSock, clientSockSize);
     if (res != sizeof(ack)) {
         perror("TTFTP_ERROR");
